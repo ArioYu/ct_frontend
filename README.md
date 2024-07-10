@@ -10,4 +10,4 @@ You may also see any lint errors in the console.
 
 ### `first version`:
 
-![image-20240710153223013](.\public\屏幕截图 2024-07-10 153218.png)
+![image-20240710153223013](public/1.png)
