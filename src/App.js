@@ -113,14 +113,42 @@ function App() {
         }
     }, []);
 
-    const handleFormSubmit = (values) => {
-        // 这里添加调用后端API的逻辑，并用返回的诊断结果更新状态
-        let updateHistory;
-        updateHistory = [...history, { description: values.ctDescription, diagnosis: '这里是从后端API获取的诊断结果', time: moment().format('YYYY-MM-DD HH:mm:ss')}]
-        updateHistory.sort((a, b) => new Date(b.time) - new Date(a.time))
-        setHistory(updateHistory);
-        console.log(updateHistory)
+    const handleFormSubmit = async (values) => {
+        try {
+            const response = await fetch('http://localhost:8080/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ question: values.ctDescription })
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const data = await response.json();
+            const diagnosis = data.answer;
+
+            console.log(diagnosis)
+
+            let updateHistory = [
+                ...history,
+                {
+                    description: values.ctDescription,
+                    diagnosis: diagnosis,
+                    time: moment().format('YYYY-MM-DD HH:mm:ss')
+                }
+            ];
+
+            updateHistory.sort((a, b) => new Date(b.time) - new Date(a.time));
+            setHistory(updateHistory);
+            console.log(updateHistory);
+        } catch (error) {
+            console.error('Error:', error);
+        }
     };
+
 
     const showModal = (content) => {
         setModalContent(content);
