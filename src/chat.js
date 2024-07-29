@@ -4,7 +4,7 @@ import '@chatui/core/es/styles/index.less';
 import './chatui-theme.css';
 // 引入组件
 import Chat, { Bubble, useMessages, Toolbar, Button } from '@chatui/core';
-import { Input, message, Modal, Steps } from 'antd';
+import {Input, message, Modal, Rate, Steps} from 'antd';
 import botAvatar from './bot.png'; // 引入本地图片
 
 const { TextArea } = Input;
@@ -57,6 +57,16 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
         if (currentStep === 0) {
             // 发送question给后端
             message.success('正在解析，请耐心等候');
+            appendMsg({
+                type: 'text',
+                content: { text: question },
+                position: 'right',
+            });
+            updatedMessages.push({
+                type: 'text',
+                content: { text: question },
+                position: 'right',
+            });
             try {
                 const response = await fetch('http://localhost:8080/get_entities', {
                     method: 'POST',
@@ -147,7 +157,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                 });
             }
         }
-        handleUpdateConversation(messages);
+        handleUpdateConversation(updatedMessages);
         setCurrentStep(currentStep + 1);
     };
 
@@ -178,7 +188,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                             minRows: 3,
                         }}
                     />
-                    <Button onClick={handleNextStep} type="primary">
+                    <Button onClick={handleNextStep} type="primary" style={{ marginTop: '16px' }}>
                         下一步
                     </Button>
                 </div>
@@ -188,25 +198,27 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
             title: '实体解析',
             content: (
                 <div>
-                    <div style={{ marginTop: '16px' }}>
-                        <div>
-                            <h3>解析得到的实体:</h3>
-                            <TextArea
-                                value={entity}
-                                onChange={(e) => setEntity(e.target.value)}
-                                placeholder="请补充实体"
-                                autoSize={{
-                                    minRows: 3,
-                                }}
-                            />
-                        </div>
-                        <Button onClick={handlePreviousStep} style={{ marginRight: '8px' }}>
-                            上一步
-                        </Button>
-                        <Button onClick={handleNextStep} type="primary">
-                            下一步
-                        </Button>
+                    <div>
+                        <h3>解析得到的实体:</h3>
+                        <TextArea
+                            value={entity}
+                            onChange={(e) => setEntity(e.target.value)}
+                            placeholder="请补充实体"
+                            autoSize={{
+                                minRows: 3,
+                            }}
+                        />
                     </div>
+                    <div style={{ marginTop: '16px' }}>
+                        <h3>请评价大模型的分析结果:</h3>
+                        <Rate allowHalf/>
+                    </div>
+                    <Button onClick={handlePreviousStep} style={{ marginRight: '8px', marginTop: '16px' }}>
+                        上一步
+                    </Button>
+                    <Button onClick={handleNextStep} type="primary" style={{ marginTop: '16px' }}>
+                        下一步
+                    </Button>
                 </div>
             ),
         },
@@ -217,20 +229,22 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                     <h3>症状相关疾病:</h3>
                     <TextArea
                         value={disease}
-                        onChange={(e) => setEntity(e.target.value)}
+                        onChange={(e) => setDisease(e.target.value)}
                         placeholder="请补充相关的疾病"
                         autoSize={{
                             minRows: 3,
                         }}
                     />
-                    <div>
-                        <Button onClick={handlePreviousStep} style={{ marginRight: '8px' }}>
-                            上一步
-                        </Button>
-                        <Button onClick={handleNextStep} type="primary">
-                            下一步
-                        </Button>
+                    <div style={{ marginTop: '16px' }}>
+                        <h3>请评价大模型的分析结果:</h3>
+                        <Rate allowHalf/>
                     </div>
+                    <Button onClick={handlePreviousStep} style={{ marginRight: '8px', marginTop: '16px' }}>
+                        上一步
+                    </Button>
+                    <Button onClick={handleNextStep} type="primary" style={{ marginTop: '16px' }}>
+                        下一步
+                    </Button>
                 </div>
             ),
         },
@@ -241,20 +255,22 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                     <h3>报告:</h3>
                     <TextArea
                         value={report}
-                        onChange={(e) => setEntity(e.target.value)}
+                        onChange={(e) => setReport(e.target.value)}
                         placeholder="请完善报告"
                         autoSize={{
                             minRows: 3,
                         }}
                     />
-                    <div>
-                        <Button onClick={handlePreviousStep} style={{ marginRight: '8px' }}>
-                            上一步
-                        </Button>
-                        <Button onClick={handleOk} type="primary">
-                            完成
-                        </Button>
+                    <div style={{ marginTop: '16px' }}>
+                        <h3>请评价大模型的分析结果:</h3>
+                        <Rate allowHalf/>
                     </div>
+                    <Button onClick={handlePreviousStep} style={{ marginRight: '8px', marginTop: '16px' }}>
+                        上一步
+                    </Button>
+                    <Button onClick={handleOk} type="primary" style={{ marginTop: '16px' }}>
+                        完成
+                    </Button>
                 </div>
             ),
         },
@@ -278,6 +294,24 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
             if (val === "CT报告诊断") {
                 setIsModalVisible(true);
             }
+        }
+
+        if (type === 'image') {
+            setTyping(true);
+            appendMsg({
+                type: 'text',
+                content: { text: '看起来是个不错的图片哦^_^' },
+                position: 'left',
+                user: { avatar: botAvatar },
+            });
+            updatedMessages.push({
+                type: 'text',
+                content: { text: '看起来是个不错的图片哦^_^' },
+                position: 'left',
+                user: { avatar: botAvatar },
+            });
+
+
         }
         console.log(updatedMessages);
         handleUpdateConversation(updatedMessages);
@@ -304,22 +338,29 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
             fileInput.addEventListener('change', (event) => {
                 const file = event.target.files[0];
                 if (file) {
-                    // 先展示图片
-                    appendMsg({
-                        type: 'image',
-                        content: {
-                            picUrl: URL.createObjectURL(file),
-                        },
-                        position: 'right',
-                    });
-                    updatedMessages.push({
-                        type: 'image',
-                        content: {
-                            picUrl: URL.createObjectURL(file),
-                        },
-                        position: 'right',
-                    });
-                    handleSend('image', file);
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const base64Image = e.target.result;
+
+                        // Display the image
+                        appendMsg({
+                            type: 'image',
+                            content: {
+                                picUrl: base64Image,
+                            },
+                            position: 'right',
+                        });
+                        updatedMessages.push({
+                            type: 'image',
+                            content: {
+                                picUrl: base64Image,
+                            },
+                            position: 'right',
+                        });
+
+                        handleSend('image', file);
+                    };
+                    reader.readAsDataURL(file);
                 }
             });
 
@@ -416,6 +457,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                     visible={isModalVisible}
                     footer={null}
                     width="50vw"
+                    onCancel={handleCancel}
                 >
                     <Steps current={currentStep}>
                         {steps.map((item, index) => (
