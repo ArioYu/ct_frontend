@@ -2,9 +2,11 @@ import React, {useEffect, useState} from 'react';
 import '@chatui/core/dist/index.css';
 import '@chatui/core/es/styles/index.less';
 import './chatui-theme.css';
+import './chat.css'
 // 引入组件
 import Chat, { Bubble, useMessages, Toolbar, Button } from '@chatui/core';
 import {Input, message, Modal, Rate, Steps} from 'antd';
+import CytoscapeComponent from 'react-cytoscapejs';
 import botAvatar from './bot.png'; // 引入本地图片
 
 const { TextArea } = Input;
@@ -42,6 +44,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
     const [entity, setEntity] = useState('');
     const [report, setReport] = useState('');
     const [disease, setDisease] = useState('');
+    const [elements, setElements] = useState([]);
     const [conversations, setConversations] = useState([]);
     const [currentConversation, setCurrentConversation] = useState(null);
     let updatedMessages = storedMessages || defaultMessages;
@@ -52,6 +55,36 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
             resetList(storedMessages);
         }
     }, [storedMessages]);
+
+
+    const renderDiseaseInReport = () => {
+        const diseaseEntries = disease.split('\n\n').filter(Boolean);
+
+        return diseaseEntries.map((entry, index) => {
+            const [diseaseName, diseaseDescription] = entry.split('\n');
+            return (
+                <div key={index} style={{ marginBottom: '16px' }}>
+                    <strong>{diseaseName}</strong>
+                    <p>{diseaseDescription}</p>
+                </div>
+            );
+        });
+    };
+
+    const handleReportChange = (e) => {
+        const updatedReport = e.target.value;
+        const diseaseEntries = disease.split('\n\n').filter(Boolean);
+
+        let formattedReport = updatedReport;
+
+        diseaseEntries.forEach(entry => {
+            const [diseaseName, diseaseDescription] = entry.split('\n');
+            const regex = new RegExp(`(${diseaseName})`, 'g');
+            formattedReport = formattedReport.replace(regex, `<strong>${diseaseName}</strong><div>${diseaseDescription}</div>`);
+        });
+
+        setReport(formattedReport);
+    };
 
     const handleNextStep = async () => {
         if (currentStep === 0) {
@@ -108,6 +141,28 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
 
                 console.log(res);
                 setDisease(res);
+
+                const diseaseEntries = res.split('\n\n').filter(Boolean);
+                const nodes = [];
+                const edges = [];
+
+                diseaseEntries.forEach((entry, index) => {
+                    const [diseaseName, diseaseDescription] = entry.split('\n');
+                    const diseaseId = `disease-${index}`;
+                    nodes.push({ data: { id: diseaseId, label: diseaseName } });
+
+                    const symptoms = diseaseDescription.split(/(\d+)\)/).map(str => str.trim()).filter(Boolean);
+
+                    symptoms.forEach((symptom, sIndex) => {
+                        const symptomId = `symptom-${index}-${sIndex}`;
+                        nodes.push({ data: { id: symptomId, label: symptom } });
+                        edges.push({ data: { source: diseaseId, target: symptomId } });
+                    });
+                });
+
+                setElements([...nodes, ...edges]);
+
+                console.log(elements)
             } catch (error) {
                 console.error('Error:', error);
                 message.error('发生错误，请稍后再试。');
@@ -175,6 +230,44 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
         setCurrentStep(0);
     };
 
+    const formatReport = (report) => {
+        const diseaseEntries = disease.split('\n\n').filter(Boolean);
+
+        let formattedReport = report;
+
+        diseaseEntries.forEach(entry => {
+            const [diseaseName, diseaseDescription] = entry.split('\n');
+            const regex = new RegExp(`(${diseaseName})`, 'g');
+            formattedReport = formattedReport.replace(regex, `<div class="disease-entry"><strong class="disease-name">${diseaseName}</strong><div class="disease-description">${diseaseDescription}</div></div>`);
+        });
+
+
+        return formattedReport;
+    };
+
+    const handleDownload = () => {
+        // 下载 PDF 文件的逻辑
+        fetch('http://localhost:8080/get_report_pdf', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ report }),
+        })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'report.pdf';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(error => console.error('Error downloading PDF:', error));
+    };
+
     const steps = [
         {
             title: '输入CT影像所见',
@@ -235,6 +328,58 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                             minRows: 3,
                         }}
                     />
+                    <div style={{ marginTop: '16px', height: '400px' }}>
+                        <CytoscapeComponent
+                            elements={elements}
+                            style={{ width: '100%', height: '400px' }}
+                            layout={{
+                                name: 'cose',
+                                idealEdgeLength: 100,
+                                nodeOverlap: 20,
+                                refresh: 20,
+                                fit: true,
+                                padding: 30,
+                                randomize: false,
+                                componentSpacing: 100,
+                                nodeRepulsion: 400000,
+                                edgeElasticity: 100,
+                                nestingFactor: 5,
+                                gravity: 80,
+                                numIter: 1000,
+                                initialTemp: 200,
+                                coolingFactor: 0.95,
+                                minTemp: 1.0
+                            }}
+                            stylesheet={[
+                                {
+                                    selector: 'node',
+                                    style: {
+                                        label: 'data(label)',
+                                        'text-wrap': 'wrap',
+                                        'text-max-width': '80px',
+                                        'text-valign': 'center',
+                                        'text-halign': 'center',
+                                        'background-color': '#6FA8DC',
+                                        'font-size': '12px',
+                                        'shape': 'round-rectangle',
+                                        'width': 'label',
+                                        'height': 'label',
+                                        'padding': '10px'
+                                    }
+                                },
+                                {
+                                    selector: 'edge',
+                                    style: {
+                                        width: 2,
+                                        'line-color': '#ccc',
+                                        'target-arrow-color': '#ccc',
+                                        'target-arrow-shape': 'triangle',
+                                        'curve-style': 'bezier'
+                                    }
+                                }
+                            ]}
+                        />
+                    </div>
                     <div style={{ marginTop: '16px' }}>
                         <h3>请评价大模型的分析结果:</h3>
                         <Rate allowHalf/>
@@ -251,26 +396,31 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
         {
             title: '报告',
             content: (
-                <div>
+                <div style={{ marginTop: '16px' }}>
                     <h3>报告:</h3>
-                    <TextArea
-                        value={report}
-                        onChange={(e) => setReport(e.target.value)}
-                        placeholder="请完善报告"
-                        autoSize={{
-                            minRows: 3,
-                        }}
+                    <div
+                        contentEditable
+                        dangerouslySetInnerHTML={{ __html: formatReport(report) }}
+                        onInput={handleReportChange}
+                        style={{ border: '1px solid #d9d9d9', padding: '8px', minHeight: '100px', whiteSpace: 'pre-wrap' }}
                     />
                     <div style={{ marginTop: '16px' }}>
                         <h3>请评价大模型的分析结果:</h3>
-                        <Rate allowHalf/>
+                        <Rate allowHalf />
+                        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between' }}>
+                            <div>
+                                <Button onClick={handlePreviousStep} style={{ marginRight: '8px' }}>
+                                    上一步
+                                </Button>
+                                <Button onClick={handleDownload} style={{ marginRight: '8px' }}>
+                                    下载 PDF
+                                </Button>
+                            </div>
+                            <Button onClick={() => handleOk()} type="primary">
+                                完成
+                            </Button>
+                        </div>
                     </div>
-                    <Button onClick={handlePreviousStep} style={{ marginRight: '8px', marginTop: '16px' }}>
-                        上一步
-                    </Button>
-                    <Button onClick={handleOk} type="primary" style={{ marginTop: '16px' }}>
-                        完成
-                    </Button>
                 </div>
             ),
         },
