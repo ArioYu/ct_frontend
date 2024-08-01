@@ -40,13 +40,14 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
     const [file, setFile] = useState(null);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
-    const [question, setQuestion] = useState('');
-    const [entity, setEntity] = useState('');
-    const [report, setReport] = useState('');
-    const [disease, setDisease] = useState('');
+    const [question, setQuestion] = useState(''); // 输入的问题
+    const [entity, setEntity] = useState(''); // 第一步输出的实体
+    const [report, setReport] = useState(''); // 第三步生成的报告
+    const [disease, setDisease] = useState(''); // 第二步输出的疾病
     const [elements, setElements] = useState([]);
     const [conversations, setConversations] = useState([]);
     const [currentConversation, setCurrentConversation] = useState(null);
+    const [rate, setRate] = useState(0);
     let updatedMessages = storedMessages || defaultMessages;
     let { messages,resetList, appendMsg, setTyping } = useMessages(storedMessages || defaultMessages);
 
@@ -122,6 +123,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
             }
         }
         if (currentStep === 1) {
+            await handleRate(question, entity);
             try {
                 message.success('正在解析，请耐心等候');
                 const response = await fetch('http://localhost:8080/get_disease_descriptions', {
@@ -139,26 +141,25 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                 const data = await response.json(); // 等待响应的 JSON 数据
                 const res = data.descriptions.join('\n');
 
-                console.log(res);
                 setDisease(res);
 
                 const diseaseEntries = res.split('\n\n').filter(Boolean);
-                const nodes = [];
-                const edges = [];
+                const nodes = data.nodes;
+                const edges = data.relations;
 
-                diseaseEntries.forEach((entry, index) => {
-                    const [diseaseName, diseaseDescription] = entry.split('\n');
-                    const diseaseId = `disease-${index}`;
-                    nodes.push({ data: { id: diseaseId, label: diseaseName } });
-
-                    const symptoms = diseaseDescription.split(/(\d+)\)/).map(str => str.trim()).filter(Boolean);
-
-                    symptoms.forEach((symptom, sIndex) => {
-                        const symptomId = `symptom-${index}-${sIndex}`;
-                        nodes.push({ data: { id: symptomId, label: symptom } });
-                        edges.push({ data: { source: diseaseId, target: symptomId } });
-                    });
-                });
+                // diseaseEntries.forEach((entry, index) => {
+                //     const [diseaseName, diseaseDescription] = entry.split('\n');
+                //     const diseaseId = `disease-${index}`;
+                //     nodes.push({ data: { id: diseaseId, label: diseaseName } });
+                //
+                //     const symptoms = diseaseDescription.split(/(\d+)\)/).map(str => str.trim()).filter(Boolean);
+                //
+                //     symptoms.forEach((symptom, sIndex) => {
+                //         const symptomId = `symptom-${index}-${sIndex}`;
+                //         nodes.push({ data: { id: symptomId, label: symptom } });
+                //         edges.push({ data: { source: diseaseId, target: symptomId } });
+                //     });
+                // });
 
                 setElements([...nodes, ...edges]);
 
@@ -169,6 +170,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
             }
         }
         if (currentStep === 2) {
+            await handleRate(entity, disease);
             try {
                 message.success('正在解析，请耐心等候');
                 const response = await fetch('http://localhost:8080/get_report', {
@@ -214,20 +216,25 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
         }
         handleUpdateConversation(updatedMessages);
         setCurrentStep(currentStep + 1);
+        setRate(0);
     };
 
     const handlePreviousStep = () => {
         setCurrentStep(currentStep - 1);
+        setRate(0);
     };
 
     const handleOk = () => {
         setIsModalVisible(false);
         setCurrentStep(0);
+        handleRate(disease, report).then(r => console.log(r));
+        setRate(0);
     };
 
     const handleCancel = () => {
         setIsModalVisible(false);
         setCurrentStep(0);
+        setRate(0);
     };
 
     const formatReport = (report) => {
@@ -268,6 +275,30 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
             .catch(error => console.error('Error downloading PDF:', error));
     };
 
+    const handleRate = async (q, a) => {
+        if (rate === 0) return;
+        try {
+            message.success('正在记录反馈结果！');
+            const response = await fetch('http://localhost:8080/rate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({question: q, answer: a, rate: rate}),
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const data = await response.json(); // 等待响应的 JSON 数据
+            message.success('反馈结果记录成功！');
+        } catch (error) {
+            message.error('发生错误，请稍后再试。');
+        }
+
+    }
+
     const steps = [
         {
             title: '输入CT影像所见',
@@ -304,7 +335,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                     </div>
                     <div style={{ marginTop: '16px' }}>
                         <h3>请评价大模型的分析结果:</h3>
-                        <Rate allowHalf/>
+                        <Rate allowHalf value={rate} onChange={setRate}/>
                     </div>
                     <Button onClick={handlePreviousStep} style={{ marginRight: '8px', marginTop: '16px' }}>
                         上一步
@@ -382,7 +413,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                     </div>
                     <div style={{ marginTop: '16px' }}>
                         <h3>请评价大模型的分析结果:</h3>
-                        <Rate allowHalf/>
+                        <Rate allowHalf value={rate} onChange={setRate}/>
                     </div>
                     <Button onClick={handlePreviousStep} style={{ marginRight: '8px', marginTop: '16px' }}>
                         上一步
@@ -406,7 +437,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                     />
                     <div style={{ marginTop: '16px' }}>
                         <h3>请评价大模型的分析结果:</h3>
-                        <Rate allowHalf />
+                        <Rate allowHalf value={rate} onChange={setRate}/>
                         <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between' }}>
                             <div>
                                 <Button onClick={handlePreviousStep} style={{ marginRight: '8px' }}>
