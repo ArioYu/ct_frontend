@@ -19,10 +19,25 @@ function App() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [fileList, setFileList] = useState([]); // Track the uploaded files
 
+  const handleFileUploadFinished = async (filename) => {
+    const response = await fetch('http://localhost:8080/build_graph', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ input_file_name: filename }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to build the knowledge graph');
+    }
+    return response.json();
+  };
+
   const props = {
     name: 'file',
     multiple: false,
-    action: 'https://file.io', // Public upload URL 假装上传
+    // action: 'https://file.io', // Public upload URL 假装上传
+    action: 'http://localhost:8080/upload', // Private upload URL
     headers: {
       authorization: 'authorization-text',
     },
@@ -37,11 +52,21 @@ function App() {
         console.log(info.file, info.fileList);
       }
       if (status === 'done') {
-        setTimeout(() => {
-          message.success(`${info.file.name} 文件上传成功，知识图谱建立成功`);
-          handleNewConversation();
-          setFileList([]);
-        }, 30000);
+        // setTimeout(() => {
+        //   message.success(`${info.file.name} 文件上传成功，知识图谱建立成功`);
+        //   handleNewConversation();
+        //   setFileList([]);
+        // }, 3000);
+        handleFileUploadFinished(info.file.name).then(
+            (response) => {
+              message.success(`${info.file.name} 文件上传成功，知识图谱建立成功`);
+              handleNewConversation();
+              setFileList([]);
+            },
+            (error) => {
+              message.error(`${info.file.name} 文件上传失败`);
+            }
+        );
       } else if (status === 'error') {
         message.error(`${info.file.name} 文件上传失败`);
       }

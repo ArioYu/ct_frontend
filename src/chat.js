@@ -48,7 +48,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
     const [elements, setElements] = useState([]);
     const [conversations, setConversations] = useState([]);
     const [currentConversation, setCurrentConversation] = useState(null);
-    const [rate, setRate] = useState(0);
+    const [rate, setRate] = useState(2.5);
     let updatedMessages = storedMessages || defaultMessages;
     let { messages,resetList, appendMsg, setTyping } = useMessages(storedMessages || defaultMessages);
 
@@ -177,25 +177,25 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
         }
         handleUpdateConversation(updatedMessages);
         setCurrentStep(currentStep + 1);
-        setRate(0);
+        setRate(2.5);
     };
 
     const handlePreviousStep = () => {
         setCurrentStep(currentStep - 1);
-        setRate(0);
+        setRate(2.5);
     };
 
     const handleOk = () => {
         setIsModalVisible(false);
         setCurrentStep(0);
         handleRate(disease, report).then(r => console.log(r));
-        setRate(0);
+        setRate(2.5);
     };
 
     const handleCancel = () => {
         setIsModalVisible(false);
         setCurrentStep(0);
-        setRate(0);
+        setRate(2.5);
     };
 
     const formatReport = (report) => {
@@ -295,7 +295,6 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
     }
 
     const handleRate = async (q, a) => {
-        if (rate === 0) return;
         try {
             message.success('正在记录反馈结果！');
             const response = await fetch('http://localhost:8080/rate', {
