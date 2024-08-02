@@ -44,6 +44,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
     const [entity, setEntity] = useState(''); // 第一步输出的实体
     const [report, setReport] = useState(''); // 第三步生成的报告
     const [disease, setDisease] = useState(''); // 第二步输出的疾病
+    const [nodes, setNodes] = useState([]);
     const [elements, setElements] = useState([]);
     const [conversations, setConversations] = useState([]);
     const [currentConversation, setCurrentConversation] = useState(null);
@@ -124,53 +125,13 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
         }
         if (currentStep === 1) {
             await handleRate(question, entity);
-            try {
-                message.success('正在解析，请耐心等候');
-                const response = await fetch('http://localhost:8080/get_disease_descriptions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ entity_str: entity }),
-                });
+            await handleGetDiseases();
 
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-
-                const data = await response.json(); // 等待响应的 JSON 数据
-                const res = data.descriptions.join('\n');
-
-                setDisease(res);
-
-                const diseaseEntries = res.split('\n\n').filter(Boolean);
-                const nodes = data.nodes;
-                const edges = data.relations;
-
-                // diseaseEntries.forEach((entry, index) => {
-                //     const [diseaseName, diseaseDescription] = entry.split('\n');
-                //     const diseaseId = `disease-${index}`;
-                //     nodes.push({ data: { id: diseaseId, label: diseaseName } });
-                //
-                //     const symptoms = diseaseDescription.split(/(\d+)\)/).map(str => str.trim()).filter(Boolean);
-                //
-                //     symptoms.forEach((symptom, sIndex) => {
-                //         const symptomId = `symptom-${index}-${sIndex}`;
-                //         nodes.push({ data: { id: symptomId, label: symptom } });
-                //         edges.push({ data: { source: diseaseId, target: symptomId } });
-                //     });
-                // });
-
-                setElements([...nodes, ...edges]);
-
-                console.log(elements)
-            } catch (error) {
-                console.error('Error:', error);
-                message.error('发生错误，请稍后再试。');
-            }
         }
         if (currentStep === 2) {
             await handleRate(entity, disease);
+            await handleUpdateWeight();
+            await handleGetDiseases();
             try {
                 message.success('正在解析，请耐心等候');
                 const response = await fetch('http://localhost:8080/get_report', {
@@ -275,6 +236,64 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
             .catch(error => console.error('Error downloading PDF:', error));
     };
 
+    const handleUpdateWeight = async() =>{
+        if (rate === 0) return;
+        try {
+            message.success('正在修改权重！');
+            const response = await fetch('http://localhost:8080/change_weight', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({nodes: nodes, score_change: rate}),
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const data = await response.json(); // 等待响应的 JSON 数据
+            if(data.status === 'success') {
+                message.success('反馈结果记录成功！');
+            }
+        } catch (error) {
+            message.error('发生错误，请稍后再试。');
+        }
+    }
+
+    const handleGetDiseases = async() => {
+        try {
+            message.success('正在解析，请耐心等候');
+            const response = await fetch('http://localhost:8080/get_disease_descriptions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ entity_str: entity }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const data = await response.json(); // 等待响应的 JSON 数据
+            const res = data.descriptions.join('\n');
+
+            setDisease(res);
+
+            const nodes = data.nodes;
+            const edges = data.relations;
+
+            setNodes(nodes);
+            setElements([...nodes, ...edges]);
+
+            console.log(elements)
+        } catch (error) {
+            console.error('Error:', error);
+            message.error('发生错误，请稍后再试。');
+        }
+    }
+
     const handleRate = async (q, a) => {
         if (rate === 0) return;
         try {
@@ -319,22 +338,22 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
             ),
         },
         {
-            title: '实体解析',
+            title: 'CT影像解析',
             content: (
                 <div>
                     <div>
-                        <h3>解析得到的实体:</h3>
+                        <h3>解析结果:</h3>
                         <TextArea
                             value={entity}
                             onChange={(e) => setEntity(e.target.value)}
-                            placeholder="请补充实体"
+                            placeholder="请补充"
                             autoSize={{
                                 minRows: 3,
                             }}
                         />
                     </div>
                     <div style={{ marginTop: '16px' }}>
-                        <h3>请评价大模型的分析结果:</h3>
+                        <h3>请对CT影像解析进行评价:</h3>
                         <Rate allowHalf value={rate} onChange={setRate}/>
                     </div>
                     <Button onClick={handlePreviousStep} style={{ marginRight: '8px', marginTop: '16px' }}>
@@ -359,6 +378,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                             minRows: 3,
                         }}
                     />
+                    <h3>知识图谱子图:</h3>
                     <div style={{ marginTop: '16px', height: '400px' }}>
                         <CytoscapeComponent
                             elements={elements}
@@ -412,7 +432,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                         />
                     </div>
                     <div style={{ marginTop: '16px' }}>
-                        <h3>请评价大模型的分析结果:</h3>
+                        <h3>请对查找到的相关疾病进行评价:</h3>
                         <Rate allowHalf value={rate} onChange={setRate}/>
                     </div>
                     <Button onClick={handlePreviousStep} style={{ marginRight: '8px', marginTop: '16px' }}>
@@ -428,6 +448,59 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
             title: '报告',
             content: (
                 <div style={{ marginTop: '16px' }}>
+                    <h3>更新后子图:</h3>
+                    <div style={{ marginTop: '16px', height: '400px' }}>
+                        <CytoscapeComponent
+                            elements={elements}
+                            style={{ width: '100%', height: '400px' }}
+                            layout={{
+                                name: 'cose',
+                                idealEdgeLength: 100,
+                                nodeOverlap: 20,
+                                refresh: 20,
+                                fit: true,
+                                padding: 30,
+                                randomize: false,
+                                componentSpacing: 100,
+                                nodeRepulsion: 400000,
+                                edgeElasticity: 100,
+                                nestingFactor: 5,
+                                gravity: 80,
+                                numIter: 1000,
+                                initialTemp: 200,
+                                coolingFactor: 0.95,
+                                minTemp: 1.0
+                            }}
+                            stylesheet={[
+                                {
+                                    selector: 'node',
+                                    style: {
+                                        label: 'data(label)',
+                                        'text-wrap': 'wrap',
+                                        'text-max-width': '80px',
+                                        'text-valign': 'center',
+                                        'text-halign': 'center',
+                                        'background-color': '#6FA8DC',
+                                        'font-size': '12px',
+                                        'shape': 'round-rectangle',
+                                        'width': 'label',
+                                        'height': 'label',
+                                        'padding': '10px'
+                                    }
+                                },
+                                {
+                                    selector: 'edge',
+                                    style: {
+                                        width: 2,
+                                        'line-color': '#ccc',
+                                        'target-arrow-color': '#ccc',
+                                        'target-arrow-shape': 'triangle',
+                                        'curve-style': 'bezier'
+                                    }
+                                }
+                            ]}
+                        />
+                    </div>
                     <h3>报告:</h3>
                     <div
                         contentEditable
@@ -436,7 +509,7 @@ function ChatBot({storedMessages, handleUpdateConversation}) {
                         style={{ border: '1px solid #d9d9d9', padding: '8px', minHeight: '100px', whiteSpace: 'pre-wrap' }}
                     />
                     <div style={{ marginTop: '16px' }}>
-                        <h3>请评价大模型的分析结果:</h3>
+                        <h3>请对生成的报告进行评价:</h3>
                         <Rate allowHalf value={rate} onChange={setRate}/>
                         <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'space-between' }}>
                             <div>

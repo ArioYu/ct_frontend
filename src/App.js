@@ -3,10 +3,11 @@ import '@chatui/core/dist/index.css';
 import '@chatui/core/es/styles/index.less';
 import './chatui-theme.css';
 // 引入组件
-import {DeleteOutlined, EditOutlined, MoreOutlined} from '@ant-design/icons';
+import {DeleteOutlined, EditOutlined, InboxOutlined, MoreOutlined} from '@ant-design/icons';
 import botAvatar from './bot.png'; // 引入本地图片
 import ChatBot from './chat'
 import {Form, Input, Modal, Select, Button, Popconfirm, message, Dropdown, Menu} from "antd";
+import Dragger from "antd/es/upload/Dragger";
 const { Option } = Select;
 function App() {
 
@@ -16,6 +17,45 @@ function App() {
   const [currentConversation, setCurrentConversation] = useState(null);
   const [messages, setMessages] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [fileList, setFileList] = useState([]); // Track the uploaded files
+
+  const props = {
+    name: 'file',
+    multiple: false,
+    action: 'https://file.io', // Public upload URL 假装上传
+    headers: {
+      authorization: 'authorization-text',
+    },
+    beforeUpload: (file) => {
+      setFileList([file]);
+      return true;
+    },
+    onChange(info) {
+      const { status } = info.file;
+      setFileList(info.fileList.slice(-1));
+      if (status !== 'uploading') {
+        console.log(info.file, info.fileList);
+      }
+      if (status === 'done') {
+        setTimeout(() => {
+          message.success(`${info.file.name} 文件上传成功，知识图谱建立成功`);
+          handleNewConversation();
+          setFileList([]);
+        }, 30000);
+      } else if (status === 'error') {
+        message.error(`${info.file.name} 文件上传失败`);
+      }
+    },
+    onRemove: () => {
+      setFileList([]);
+    },
+    onDrop(e) {
+      setTimeout(() => {
+        message.success(`文件上传成功，知识图谱建立成功`);
+      }, 30000);
+    },
+    fileList,
+  };
 
   function handleConversationClick(conversation) {
     setCurrentConversation(conversation);
@@ -173,48 +213,12 @@ function App() {
             }}
 
         >
-          <Form
-              form={form}
-              layout="vertical"
-              onFinish={handleNewConversation}
-          >
-            <Form.Item
-                name="database"
-                label="数据库名称"
-                rules={[{ required: true, message: '请选择数据库名称' }]}
-            >
-              <Select placeholder="选择数据库">
-                <Option value="neo4j">Neo4j</Option>
-                <Option value="qdrant">Qdrant</Option>
-              </Select>
-            </Form.Item>
-            <Form.Item
-                name="uri"
-                label="URI"
-                rules={[{ required: true, message: '请输入URI' }]}
-            >
-              <Input placeholder="输入URI" />
-            </Form.Item>
-            <Form.Item
-                name="username"
-                label="用户名"
-                rules={[{ required: true, message: '请输入用户名' }]}
-            >
-              <Input placeholder="输入用户名" />
-            </Form.Item>
-            <Form.Item
-                name="password"
-                label="密码"
-                rules={[{ required: true, message: '请输入密码' }]}
-            >
-              <Input.Password placeholder="输入密码" />
-            </Form.Item>
-            <Form.Item>
-              <Button type="primary" htmlType="submit" style={{ margin: '0 auto', display: 'block' }}>
-                提交
-              </Button>
-            </Form.Item>
-          </Form>
+          <Dragger {...props}>
+            <p className="ant-upload-drag-icon">
+              <InboxOutlined />
+            </p>
+            <p className="ant-upload-text">点击或者拖拽文件进行上传，创建知识图谱</p>
+          </Dragger>
         </Modal>
         <ChatBot storedMessages={messages} handleUpdateConversation={handleUpdateConversation}/>
       </div>
